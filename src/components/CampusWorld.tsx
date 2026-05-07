@@ -47,7 +47,7 @@ const HUNT_CLUES = [
   "Where nights are counted in stacked windows, follow the path to the place students rest.",
   "Where knowledge sleeps in endless rows, seek the quiet giant with many floors of pages.",
   "Where time is kept above the campus, stand near the place that watches every hour pass.",
-  "Find the tiny spot that gives out cash—small outside, useful inside—near the busy walkway.",
+  "Find the tiny spot that gives out cash, small outside, useful inside, near the busy walkway.",
   "Where crowds gather for big moments, look for the wide building made for events and echoes.",
 ] as const;
 const HUNT_CODES = ["DORM42", "BOOK17", "TIME88", "CASH09", "EVENT55"] as const;
@@ -378,7 +378,7 @@ export default function CampusWorld() {
         new THREE.MeshLambertMaterial({ color: 0x3a9e28, side: THREE.DoubleSide }),
       ];
 
-      // [cx, cz, half-width+padding, half-depth+padding] — generous clearance
+      // [cx, cz, half-width+padding, half-depth+padding], generous clearance
       const bldgZones: Array<[number, number, number, number]> = [
         [-42, -44, 34, 30], [0, -52, 26, 26], [42, -44, 34, 30],
         [-50,  50, 34, 30], [0,  50, 26, 22], [42,  42, 34, 30],
@@ -401,7 +401,7 @@ export default function CampusWorld() {
       }
 
       const dummy = new THREE.Object3D();
-      // Two crossed blades per tuft — 3 colour variants as separate InstancedMesh
+      // Two crossed blades per tuft, 3 colour variants as separate InstancedMesh
       [0, 1, 2].forEach(ci => {
         const slice = grassPts.filter((_, i) => i % 3 === ci);
         [0, Math.PI / 2].forEach(ry => {
@@ -460,7 +460,7 @@ export default function CampusWorld() {
 
     // ── Low-poly trees around the campus perimeter ────────────────────────
     {
-      // Geometries — flat shading gives the faceted low-poly look
+      // Geometries, flat shading gives the faceted low-poly look
       const trunkGeo  = new THREE.CylinderGeometry(0.14, 0.22, 2.6, 5);
       const blob0Geo  = new THREE.IcosahedronGeometry(1.9, 1); // main canopy
       const blob1Geo  = new THREE.IcosahedronGeometry(1.3, 1); // left cluster
@@ -494,7 +494,7 @@ export default function CampusWorld() {
         );
       };
 
-      // Perimeter band (76–87) — random scatter
+      // Perimeter band (76-87), random scatter
       for (let i = 0; i < 320; i++) {
         const angle = Math.random() * Math.PI * 2;
         const r = rand(76, 87);
@@ -504,7 +504,7 @@ export default function CampusWorld() {
         pts.push([x, z]);
       }
 
-      // Interior campus — random scatter avoiding buildings & pond
+      // Interior campus, random scatter avoiding buildings & pond
       for (let i = 0; i < 500; i++) {
         const x = rand(-72, 72);
         const z = rand(-72, 72);
@@ -596,7 +596,7 @@ export default function CampusWorld() {
           model.position.x -= centreVec.x;
           model.position.z -= centreVec.z;
 
-          // Ground the model — shift up so lowest vertex is at y=0
+          // Ground the model, shift up so lowest vertex is at y=0
           model.updateMatrixWorld(true);
           let trueMinY = Infinity;
           model.traverse((child: THREE.Object3D) => {
@@ -1089,7 +1089,7 @@ export default function CampusWorld() {
         whiteSpace: "nowrap",
         backdropFilter: "blur(5px)",
       }}>
-        San José State University — 3D Campus
+        San José State University - 3D Campus
       </div>
 
       {/* HUD corner chips */}
@@ -1124,7 +1124,7 @@ export default function CampusWorld() {
             fontSize: 12,
             pointerEvents: "none",
           }}>
-            Objective: Solve all clues
+            Objective: Solve all CLUES
           </div>
         </>
       )}
@@ -1149,14 +1149,16 @@ export default function CampusWorld() {
             style={{
               marginTop: 10,
               padding: "12px 34px",
-              background: "linear-gradient(135deg, #2997ff, #1a75ff)",
+              background: "linear-gradient(135deg, #4ec2ff, #2f86ff 58%, #2356ff)",
               color: "#fff",
-              border: "1px solid rgba(180,220,255,0.35)",
+              border: "1px solid rgba(210,235,255,0.75)",
               borderRadius: 12,
               fontSize: 16,
               cursor: "pointer",
-              fontWeight: 700,
-              boxShadow: "0 12px 26px rgba(21,99,210,0.45)",
+              fontWeight: 800,
+              letterSpacing: 0.4,
+              textTransform: "uppercase",
+              boxShadow: "0 14px 34px rgba(44,130,255,0.65), inset 0 1px 0 rgba(255,255,255,0.45)",
             }}
           >
             Enter Campus
@@ -1212,15 +1214,17 @@ export default function CampusWorld() {
             position: "absolute",
             right: 16,
             top: 16,
-            background: "linear-gradient(180deg, rgba(28,54,91,0.95), rgba(15,27,48,0.92))",
+            background: "linear-gradient(135deg, #4da8ff, #2b74ff 65%, #1d46db)",
             color: "#fff",
-            border: "1px solid rgba(148,193,255,0.66)",
+            border: "1px solid rgba(210,233,255,0.82)",
             borderRadius: 12,
-            padding: "10px 15px",
+            padding: "11px 16px",
             fontSize: 13,
-            fontWeight: 700,
+            fontWeight: 800,
             cursor: "pointer",
-            boxShadow: "0 10px 26px rgba(8,26,54,0.5)",
+            letterSpacing: 0.45,
+            textTransform: "uppercase",
+            boxShadow: "0 14px 30px rgba(25,88,220,0.62), inset 0 1px 0 rgba(255,255,255,0.42)",
             backdropFilter: "blur(6px)",
           }}
         >
@@ -1362,12 +1366,14 @@ export default function CampusWorld() {
                 border: "none",
                 borderRadius: 10,
                 padding: "10px 12px",
-                background: "linear-gradient(135deg, #2f80ed, #1f66d9)",
+                background: "linear-gradient(135deg, #5eb4ff, #2f7dff 60%, #1f51c7)",
                 color: "#fff",
                 fontSize: 13,
-                fontWeight: 700,
+                fontWeight: 800,
                 cursor: "pointer",
-                boxShadow: "0 8px 20px rgba(37,106,218,0.35)",
+                letterSpacing: 0.3,
+                textTransform: "uppercase",
+                boxShadow: "0 11px 24px rgba(37,106,218,0.5), inset 0 1px 0 rgba(255,255,255,0.35)",
               }}
             >
               {clueIndex + 1 >= HUNT_CLUES.length ? "Complete Hunt" : "Unlock Next Clue"}
@@ -1426,12 +1432,14 @@ export default function CampusWorld() {
                 border: "none",
                 borderRadius: 10,
                 padding: "11px 18px",
-                background: "linear-gradient(135deg, #2d9eff, #1f73e8)",
+                background: "linear-gradient(135deg, #64bcff, #2d8fff 58%, #2058d6)",
                 color: "#fff",
                 fontSize: 14,
                 fontWeight: 800,
                 cursor: "pointer",
-                boxShadow: "0 10px 24px rgba(27,111,224,0.4)",
+                letterSpacing: 0.5,
+                textTransform: "uppercase",
+                boxShadow: "0 14px 28px rgba(27,111,224,0.58), inset 0 1px 0 rgba(255,255,255,0.4)",
               }}
             >
               Claim Reward
@@ -1498,11 +1506,14 @@ export default function CampusWorld() {
               border: "none",
               borderRadius: 8,
               padding: "8px 14px",
-              background: "linear-gradient(180deg, #2a67c5, #1f4f97)",
+              background: "linear-gradient(135deg, #6cb7ff, #2f7dff 60%, #1d49bc)",
               color: "#fff",
               cursor: "pointer",
               fontSize: 13,
-              fontWeight: 700,
+              fontWeight: 800,
+              letterSpacing: 0.4,
+              textTransform: "uppercase",
+              boxShadow: "0 10px 24px rgba(37,106,218,0.52)",
             }}
           >
             Randomize Meme
@@ -1514,10 +1525,12 @@ export default function CampusWorld() {
               border: "none",
               borderRadius: 8,
               padding: "8px 14px",
-              background: "linear-gradient(180deg, #2f3f58, #223148)",
+              background: "linear-gradient(180deg, #465b79, #2a3b56)",
               color: "#fff",
               cursor: "pointer",
               fontSize: 13,
+              fontWeight: 700,
+              letterSpacing: 0.25,
             }}
           >
             Close
