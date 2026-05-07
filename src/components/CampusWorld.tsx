@@ -140,6 +140,10 @@ export default function CampusWorld() {
   const [clueIndex, setClueIndex] = useState(0);
   const [huntComplete, setHuntComplete] = useState(false);
   const [showReward, setShowReward] = useState(false);
+  const [rewardVideoUrl, setRewardVideoUrl] = useState<string>("");
+  const [rewardTitle, setRewardTitle] = useState("Random Meme Reward");
+  const [rewardLoading, setRewardLoading] = useState(false);
+  const [rewardError, setRewardError] = useState<string | null>(null);
   const [dugClues, setDugClues] = useState<boolean[]>(() => Array(HUNT_CLUES.length).fill(false));
   const [foundCodes, setFoundCodes] = useState<string[]>(() => Array(HUNT_CLUES.length).fill(""));
   const [codeInput, setCodeInput] = useState("");
@@ -154,6 +158,26 @@ export default function CampusWorld() {
   useEffect(() => { dugCluesRef.current = dugClues; }, [dugClues]);
   useEffect(() => { foundCodesRef.current = foundCodes; }, [foundCodes]);
   useEffect(() => { huntCompleteRef.current = huntComplete; }, [huntComplete]);
+
+  async function loadRandomRewardMeme() {
+    setRewardLoading(true);
+    setRewardError(null);
+    try {
+      const res = await fetch("/api/vlipsy/random");
+      if (!res.ok) throw new Error("Could not load meme");
+      const data = (await res.json()) as {
+        videoUrl?: string;
+        title?: string;
+      };
+      if (!data.videoUrl) throw new Error("No video URL returned");
+      setRewardVideoUrl(data.videoUrl);
+      setRewardTitle(data.title || "Random Meme Reward");
+    } catch {
+      setRewardError("Could not fetch a random meme right now.");
+    } finally {
+      setRewardLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (!started) return;
@@ -628,6 +652,159 @@ export default function CampusWorld() {
     window.addEventListener("keydown", (e) => onKey(e, true));
     window.addEventListener("keyup", (e) => onKey(e, false));
 
+    // ── Lightweight footstep SFX (procedural, no asset file) ───────────────
+    let audioCtx: AudioContext | null = null;
+    let stepTimer = 0;
+    let audioPrimed = false;
+    const playUnlockPing = () => {
+      if (!audioCtx) return;
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(520, now);
+      osc.frequency.exponentialRampToValueAtTime(780, now + 0.08);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.16, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.13);
+    };
+    const playJumpSfx = () => {
+      const ctx = ensureAudio();
+      if (!ctx) return;
+      if (ctx.state === "suspended") return;
+      const now = ctx.currentTime;
+
+      // Mario-like upward chirp.
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const hp = ctx.createBiquadFilter();
+
+      osc1.type = "square";
+      osc2.type = "triangle";
+      osc1.frequency.setValueAtTime(520, now);
+      osc1.frequency.exponentialRampToValueAtTime(980, now + 0.1);
+      osc2.frequency.setValueAtTime(260, now);
+      osc2.frequency.exponentialRampToValueAtTime(490, now + 0.1);
+
+      hp.type = "highpass";
+      hp.frequency.setValueAtTime(140, now);
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.2, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(hp).connect(ctx.destination);
+
+      osc1.start(now);
+      osc2.start(now);
+      osc1.stop(now + 0.17);
+      osc2.stop(now + 0.17);
+    };
+    const ensureAudio = () => {
+      if (audioCtx) return audioCtx;
+      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctx) return null;
+      audioCtx = new Ctx();
+      return audioCtx;
+    };
+    const tryResumeAudio = () => {
+      const ctx = ensureAudio();
+      if (!ctx) return;
+      if (ctx.state === "suspended") void ctx.resume();
+      if (!audioPrimed && ctx.state === "running") {
+        audioPrimed = true;
+        playUnlockPing();
+      }
+    };
+    const playFootstep = () => {
+      const ctx = ensureAudio();
+      if (!ctx) return;
+      if (ctx.state === "suspended") return;
+      const now = ctx.currentTime;
+
+      // Small randomization keeps repeated steps from sounding robotic.
+      const thumpHz = 70 + Math.random() * 16;
+      const toeHz = 120 + Math.random() * 28;
+      const pan = (Math.random() - 0.5) * 0.35;
+      const stepDur = 0.16;
+
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.0001, now);
+      master.gain.exponentialRampToValueAtTime(0.28, now + 0.01);
+      master.gain.exponentialRampToValueAtTime(0.0001, now + stepDur);
+
+      const panner = "createStereoPanner" in ctx ? ctx.createStereoPanner() : null;
+      if (panner) panner.pan.value = pan;
+
+      // Heel thump (low, short)
+      const heelOsc = ctx.createOscillator();
+      const heelGain = ctx.createGain();
+      heelOsc.type = "sine";
+      heelOsc.frequency.setValueAtTime(thumpHz, now);
+      heelOsc.frequency.exponentialRampToValueAtTime(thumpHz * 0.62, now + 0.05);
+      heelGain.gain.setValueAtTime(0.0001, now);
+      heelGain.gain.exponentialRampToValueAtTime(0.36, now + 0.008);
+      heelGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
+
+      // Toe follow-through (slightly higher and delayed)
+      const toeOsc = ctx.createOscillator();
+      const toeGain = ctx.createGain();
+      toeOsc.type = "triangle";
+      toeOsc.frequency.setValueAtTime(toeHz, now + 0.02);
+      toeOsc.frequency.exponentialRampToValueAtTime(toeHz * 0.72, now + 0.095);
+      toeGain.gain.setValueAtTime(0.0001, now);
+      toeGain.gain.exponentialRampToValueAtTime(0.19, now + 0.03);
+      toeGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+
+      // Filtered scrape texture (shoe/ground contact)
+      const noise = ctx.createBufferSource();
+      const noiseBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * stepDur), ctx.sampleRate);
+      const data = noiseBuf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+      noise.buffer = noiseBuf;
+      const noiseBand = ctx.createBiquadFilter();
+      noiseBand.type = "bandpass";
+      noiseBand.frequency.setValueAtTime(500 + Math.random() * 200, now);
+      noiseBand.Q.value = 0.7;
+      const noiseHigh = ctx.createBiquadFilter();
+      noiseHigh.type = "highpass";
+      noiseHigh.frequency.setValueAtTime(110, now);
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.0001, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.1, now + 0.016);
+      noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
+
+      const out = panner ?? master;
+      if (panner) {
+        master.connect(panner).connect(ctx.destination);
+      } else {
+        master.connect(ctx.destination);
+      }
+      heelOsc.connect(heelGain).connect(master);
+      toeOsc.connect(toeGain).connect(master);
+      noise.connect(noiseBand).connect(noiseHigh).connect(noiseGain).connect(master);
+
+      heelOsc.start(now);
+      toeOsc.start(now + 0.015);
+      noise.start(now);
+      heelOsc.stop(now + 0.09);
+      toeOsc.stop(now + 0.12);
+      noise.stop(now + 0.13);
+
+      // Keep TypeScript happy when out variable is optimized away.
+      void out;
+    };
+    window.addEventListener("keydown", tryResumeAudio);
+    renderer.domElement.addEventListener("mousedown", tryResumeAudio);
+    window.addEventListener("pointerdown", tryResumeAudio);
+    window.addEventListener("touchstart", tryResumeAudio, { passive: true });
+
     const PLAYER_R     = 0.38 * rw;
     const PLAYER_SPEED = 8   * rw;
     const GRAVITY      = -18 * rw;
@@ -756,8 +933,26 @@ export default function CampusWorld() {
         charAngle = Math.atan2(mx, mz); // face movement direction
       }
 
+      // Footsteps while walking on ground
+      if (moving && onGround) {
+        stepTimer += dt;
+        const stepInterval = sprint ? 0.22 : 0.32;
+        if (stepTimer >= stepInterval) {
+          stepTimer = 0;
+          playFootstep();
+        }
+      } else {
+        stepTimer = 0;
+      }
+      // Debug fallback: press T to force a test step sound.
+      if (keys["KeyT"]) playFootstep();
+
       // Gravity & jump
-      if (keys["Space"] && onGround) { velY = 6 * rw; onGround = false; }
+      if (keys["Space"] && onGround) {
+        velY = 6 * rw;
+        onGround = false;
+        playJumpSfx();
+      }
       velY += GRAVITY * dt;
       charPos.y += velY * dt;
       if (charPos.y <= 0) { charPos.y = 0; velY = 0; onGround = true; }
@@ -848,9 +1043,14 @@ export default function CampusWorld() {
       cancelAnimationFrame(animId);
       window.removeEventListener("keydown", (e) => onKey(e, true));
       window.removeEventListener("keyup", (e) => onKey(e, false));
+      window.removeEventListener("keydown", tryResumeAudio);
       window.removeEventListener("resize", onResize);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
+      renderer.domElement.removeEventListener("mousedown", tryResumeAudio);
+      window.removeEventListener("pointerdown", tryResumeAudio);
+      window.removeEventListener("touchstart", tryResumeAudio);
+      if (audioCtx && audioCtx.state !== "closed") void audioCtx.close();
       renderer.dispose();
       if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement);
       if (document.body.contains(mmCanvas)) document.body.removeChild(mmCanvas);
@@ -858,33 +1058,105 @@ export default function CampusWorld() {
   }, [started]);
 
   return (
-    <div style={{ width: "100vw", height: "100vh", background: "#000", position: "relative", overflow: "hidden" }}>
+    <div style={{ width: "100vw", height: "100vh", background: "#000", position: "relative", overflow: "hidden", fontFamily: "Inter, Segoe UI, Arial, sans-serif" }}>
       <div ref={mountRef} style={{ width: "100%", height: "100%" }} />
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          pointerEvents: "none",
+          background:
+            "radial-gradient(circle at 15% 15%, rgba(100,170,255,0.16), transparent 34%), radial-gradient(circle at 85% 18%, rgba(118,78,255,0.12), transparent 30%), linear-gradient(180deg, rgba(3,7,14,0.08), rgba(3,7,14,0.4))",
+        }}
+      />
 
       {/* Title */}
       <div style={{
-        position: "absolute", top: 16, left: "50%", transform: "translateX(-50%)",
-        background: "rgba(0,0,0,0.55)", color: "#fff", padding: "6px 18px",
-        borderRadius: 8, fontSize: 14, pointerEvents: "none", whiteSpace: "nowrap",
+        position: "absolute",
+        top: 16,
+        left: "50%",
+        transform: "translateX(-50%)",
+        background: "linear-gradient(180deg, rgba(13,20,33,0.9), rgba(8,13,23,0.78))",
+        color: "#eef6ff",
+        padding: "10px 20px",
+        borderRadius: 14,
+        border: "1px solid rgba(132,178,255,0.35)",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+        fontSize: 14,
+        fontWeight: 700,
+        letterSpacing: 0.2,
+        pointerEvents: "none",
+        whiteSpace: "nowrap",
+        backdropFilter: "blur(5px)",
       }}>
         San José State University — 3D Campus
       </div>
 
+      {/* HUD corner chips */}
+      {started && (
+        <>
+          <div style={{
+            position: "absolute",
+            top: 16,
+            left: 16,
+            background: "linear-gradient(160deg, rgba(16,29,46,0.9), rgba(7,13,22,0.82))",
+            color: "#b8cdf3",
+            border: "1px solid rgba(123,163,233,0.36)",
+            borderRadius: 12,
+            padding: "8px 10px",
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: 0.2,
+            backdropFilter: "blur(5px)",
+            pointerEvents: "none",
+          }}>
+            CAMPUS HUNT
+          </div>
+          <div style={{
+            position: "absolute",
+            top: 56,
+            left: 16,
+            background: "rgba(8,14,24,0.78)",
+            color: "#9eb8df",
+            border: "1px solid rgba(128,160,214,0.28)",
+            borderRadius: 10,
+            padding: "7px 10px",
+            fontSize: 12,
+            pointerEvents: "none",
+          }}>
+            Objective: Solve all clues
+          </div>
+        </>
+      )}
+
       {/* Start overlay */}
       {!started && (
         <div style={{
-          position: "absolute", inset: 0, display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center",
-          background: "rgba(0,0,0,0.72)", color: "#fff", gap: 16,
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "radial-gradient(circle at 50% 35%, rgba(50,95,160,0.22), rgba(2,6,14,0.9) 58%)",
+          color: "#fff",
+          gap: 14,
         }}>
-          <h1 style={{ fontSize: 28, fontWeight: 700 }}>Interactive 3D Campus Map</h1>
-          <p style={{ color: "#aaa", fontSize: 14 }}>San José State University</p>
+          <h1 style={{ fontSize: 34, fontWeight: 800, marginBottom: 2 }}>Campus Hunt</h1>
+          <p style={{ color: "#b8c8e1", fontSize: 15, margin: 0 }}>San José State University · 3D Treasure Adventure</p>
           <button
             onClick={() => setStarted(true)}
             style={{
-              marginTop: 8, padding: "12px 32px", background: "#1d9bf0",
-              color: "#fff", border: "none", borderRadius: 8, fontSize: 16,
-              cursor: "pointer", fontWeight: 600,
+              marginTop: 10,
+              padding: "12px 34px",
+              background: "linear-gradient(135deg, #2997ff, #1a75ff)",
+              color: "#fff",
+              border: "1px solid rgba(180,220,255,0.35)",
+              borderRadius: 12,
+              fontSize: 16,
+              cursor: "pointer",
+              fontWeight: 700,
+              boxShadow: "0 12px 26px rgba(21,99,210,0.45)",
             }}
           >
             Enter Campus
@@ -895,9 +1167,17 @@ export default function CampusWorld() {
       {/* Loading bar */}
       {started && loaded < TOTAL && (
         <div style={{
-          position: "absolute", bottom: 32, left: "50%", transform: "translateX(-50%)",
-          background: "rgba(0,0,0,0.6)", color: "#fff", padding: "8px 20px",
-          borderRadius: 8, fontSize: 13,
+          position: "absolute",
+          bottom: 28,
+          left: "50%",
+          transform: "translateX(-50%)",
+          background: "rgba(8,14,24,0.82)",
+          color: "#dce9ff",
+          padding: "10px 18px",
+          borderRadius: 12,
+          border: "1px solid rgba(141,174,231,0.32)",
+          fontSize: 13,
+          backdropFilter: "blur(4px)",
         }}>
           Loading campus… {loaded}/{TOTAL}
         </div>
@@ -906,33 +1186,45 @@ export default function CampusWorld() {
       {/* Controls hint */}
       {started && (
         <div style={{
-          position: "absolute", bottom: 80, left: "50%", transform: "translateX(-50%)",
-          background: "rgba(0,0,0,0.55)", color: "#ccc", padding: "6px 16px",
-          borderRadius: 6, fontSize: 13, pointerEvents: "none", whiteSpace: "nowrap",
+          position: "absolute",
+          bottom: 82,
+          left: "50%",
+          transform: "translateX(-50%)",
+          background: "rgba(8,12,20,0.72)",
+          color: "#d2def2",
+          padding: "8px 16px",
+          borderRadius: 999,
+          border: "1px solid rgba(129,161,220,0.28)",
+          fontSize: 13,
+          pointerEvents: "none",
+          whiteSpace: "nowrap",
+          backdropFilter: "blur(4px)",
         }}>
           WASD to move · Shift to sprint · Space to jump · Drag to orbit camera
         </div>
       )}
 
       {/* Clues button */}
-      {started && (
+      {started && !showClues && !huntComplete && (
         <button
           onClick={() => setShowClues(true)}
           style={{
             position: "absolute",
             right: 16,
             top: 16,
-            background: "rgba(10,14,20,0.85)",
+            background: "linear-gradient(180deg, rgba(28,54,91,0.95), rgba(15,27,48,0.92))",
             color: "#fff",
-            border: "1px solid rgba(120,170,255,0.55)",
-            borderRadius: 10,
-            padding: "9px 14px",
+            border: "1px solid rgba(148,193,255,0.66)",
+            borderRadius: 12,
+            padding: "10px 15px",
             fontSize: 13,
             fontWeight: 700,
             cursor: "pointer",
+            boxShadow: "0 10px 26px rgba(8,26,54,0.5)",
+            backdropFilter: "blur(6px)",
           }}
         >
-          Clues
+          Open Clues
         </button>
       )}
 
@@ -941,20 +1233,20 @@ export default function CampusWorld() {
         <div style={{
           position: "absolute",
           inset: 0,
-          background: "rgba(0,0,0,0.42)",
+          background: "rgba(0,0,0,0.58)",
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
           zIndex: 20,
         }}>
           <div style={{
-            width: 320,
+            width: 340,
             maxWidth: "88vw",
-            borderRadius: 34,
-            background: "linear-gradient(180deg, #111821 0%, #0b1119 100%)",
-            border: "2px solid #2a3b52",
-            boxShadow: "0 14px 40px rgba(0,0,0,0.6)",
-            padding: "20px 18px 18px",
+            borderRadius: 36,
+            background: "linear-gradient(180deg, #121d2c 0%, #0a121d 100%)",
+            border: "2px solid rgba(103,145,208,0.5)",
+            boxShadow: "0 20px 55px rgba(0,0,0,0.62)",
+            padding: "22px 18px 18px",
             position: "relative",
             color: "#e9efff",
           }}>
@@ -962,8 +1254,8 @@ export default function CampusWorld() {
               width: 92,
               height: 10,
               borderRadius: 999,
-              background: "#0a0f15",
-              border: "1px solid #1c2b3f",
+              background: "#0b131d",
+              border: "1px solid #263850",
               margin: "0 auto 14px",
             }} />
             <button
@@ -976,7 +1268,7 @@ export default function CampusWorld() {
                 width: 28,
                 height: 28,
                 borderRadius: 999,
-                background: "#1e2a3a",
+                background: "#203146",
                 color: "#d8e6ff",
                 cursor: "pointer",
                 fontWeight: 700,
@@ -986,15 +1278,30 @@ export default function CampusWorld() {
               X
             </button>
 
-            <div style={{ fontSize: 13, color: "#9cb5da", marginBottom: 8 }}>
+            <div style={{ fontSize: 13, color: "#9cb5da", marginBottom: 6, fontWeight: 700, letterSpacing: 0.3 }}>
               Treasure Hunt
             </div>
-            <div style={{ fontSize: 12, color: "#7f96b8", marginBottom: 14 }}>
+            <div style={{ fontSize: 12, color: "#7f96b8", marginBottom: 14, fontWeight: 600 }}>
               Clue {Math.min(clueIndex + 1, HUNT_CLUES.length)} of {HUNT_CLUES.length}
             </div>
             <div style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(140,177,230,0.25)",
+              height: 7,
+              width: "100%",
+              borderRadius: 999,
+              background: "rgba(255,255,255,0.09)",
+              marginBottom: 14,
+              overflow: "hidden",
+              border: "1px solid rgba(132,165,220,0.24)",
+            }}>
+              <div style={{
+                width: `${((Math.min(clueIndex + 1, HUNT_CLUES.length)) / HUNT_CLUES.length) * 100}%`,
+                height: "100%",
+                background: "linear-gradient(90deg, #3a9bff, #79b6ff)",
+              }} />
+            </div>
+            <div style={{
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(140,177,230,0.35)",
               borderRadius: 14,
               padding: "14px 12px",
               lineHeight: 1.45,
@@ -1022,9 +1329,9 @@ export default function CampusWorld() {
                 width: "100%",
                 borderRadius: 8,
                 border: "1px solid rgba(150,170,210,0.4)",
-                background: "rgba(7,11,17,0.8)",
+                background: "rgba(8,12,20,0.9)",
                 color: "#eaf1ff",
-                padding: "9px 10px",
+                padding: "10px 11px",
                 fontSize: 13,
                 outline: "none",
               }}
@@ -1055,17 +1362,26 @@ export default function CampusWorld() {
                 border: "none",
                 borderRadius: 10,
                 padding: "10px 12px",
-                background: "#2f80ed",
+                background: "linear-gradient(135deg, #2f80ed, #1f66d9)",
                 color: "#fff",
                 fontSize: 13,
                 fontWeight: 700,
                 cursor: "pointer",
+                boxShadow: "0 8px 20px rgba(37,106,218,0.35)",
               }}
             >
               {clueIndex + 1 >= HUNT_CLUES.length ? "Complete Hunt" : "Unlock Next Clue"}
             </button>
             {codeFeedback && (
-              <div style={{ marginTop: 8, fontSize: 12, color: "#a8c6ee" }}>
+              <div style={{
+                marginTop: 10,
+                fontSize: 12,
+                color: "#d7e8ff",
+                background: "rgba(85,129,192,0.18)",
+                border: "1px solid rgba(120,167,236,0.24)",
+                borderRadius: 8,
+                padding: "7px 8px",
+              }}>
                 {codeFeedback}
               </div>
             )}
@@ -1078,7 +1394,7 @@ export default function CampusWorld() {
         <div style={{
           position: "absolute",
           inset: 0,
-          background: "rgba(4,10,20,0.72)",
+          background: "rgba(2,8,16,0.8)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -1087,30 +1403,35 @@ export default function CampusWorld() {
           <div style={{
             width: 420,
             maxWidth: "90vw",
-            background: "#101a2a",
-            border: "1px solid rgba(120,170,255,0.45)",
-            borderRadius: 16,
-            padding: "20px 18px",
+            background: "linear-gradient(180deg, #101c30, #0a1322)",
+            border: "1px solid rgba(120,170,255,0.52)",
+            borderRadius: 20,
+            padding: "24px 20px",
             textAlign: "center",
             color: "#eaf1ff",
+            boxShadow: "0 18px 45px rgba(0,0,0,0.48)",
           }}>
             <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>
-              Hunt Complete
+              Hunt Complete ✨
             </div>
             <div style={{ fontSize: 14, color: "#a9bddb", marginBottom: 16 }}>
-              You solved all 5 clues.
+              You solved all 5 clues and unlocked the final reward.
             </div>
             <button
-              onClick={() => setShowReward(true)}
+              onClick={async () => {
+                setShowReward(true);
+                await loadRandomRewardMeme();
+              }}
               style={{
                 border: "none",
                 borderRadius: 10,
                 padding: "11px 18px",
-                background: "#1d9bf0",
+                background: "linear-gradient(135deg, #2d9eff, #1f73e8)",
                 color: "#fff",
                 fontSize: 14,
                 fontWeight: 800,
                 cursor: "pointer",
+                boxShadow: "0 10px 24px rgba(27,111,224,0.4)",
               }}
             >
               Claim Reward
@@ -1124,7 +1445,7 @@ export default function CampusWorld() {
         <div style={{
           position: "absolute",
           inset: 0,
-          background: "rgba(0,0,0,0.86)",
+          background: "rgba(0,0,0,0.9)",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -1132,23 +1453,60 @@ export default function CampusWorld() {
           gap: 12,
           zIndex: 40,
         }}>
-          <div style={{ color: "#fff", fontSize: 22, fontWeight: 900 }}>
-            Achievement Unlocked
+          <div style={{ color: "#f2f7ff", fontSize: 24, fontWeight: 900, letterSpacing: 0.3 }}>
+            Achievement Unlocked 🏆
           </div>
-          <video
-            src="https://media.vlipsy.com/vlips/eWlKoNox/480p.mp4"
-            controls
-            autoPlay
-            loop
-            playsInline
+          <div style={{ color: "#a7c3ee", fontSize: 13, marginTop: -6 }}>
+            {rewardTitle}
+          </div>
+          {rewardLoading && (
+            <div style={{ color: "#d7e8ff", fontSize: 14 }}>Loading random meme...</div>
+          )}
+          {!rewardLoading && rewardError && (
+            <div style={{
+              color: "#ffd2d2",
+              fontSize: 13,
+              background: "rgba(140,35,35,0.3)",
+              border: "1px solid rgba(230,120,120,0.45)",
+              padding: "8px 10px",
+              borderRadius: 8,
+            }}>
+              {rewardError}
+            </div>
+          )}
+          {!rewardLoading && !rewardError && rewardVideoUrl && (
+            <video
+              src={rewardVideoUrl}
+              controls
+              autoPlay
+              loop
+              playsInline
+              style={{
+                width: "min(900px, 92vw)",
+                maxHeight: "70vh",
+                borderRadius: 14,
+                border: "2px solid rgba(255,255,255,0.28)",
+                background: "#000",
+                boxShadow: "0 18px 40px rgba(0,0,0,0.5)",
+              }}
+            />
+          )}
+          <button
+            onClick={loadRandomRewardMeme}
             style={{
-              width: "min(900px, 92vw)",
-              maxHeight: "70vh",
-              borderRadius: 10,
-              border: "2px solid rgba(255,255,255,0.22)",
-              background: "#000",
+              marginTop: 2,
+              border: "none",
+              borderRadius: 8,
+              padding: "8px 14px",
+              background: "linear-gradient(180deg, #2a67c5, #1f4f97)",
+              color: "#fff",
+              cursor: "pointer",
+              fontSize: 13,
+              fontWeight: 700,
             }}
-          />
+          >
+            Randomize Meme
+          </button>
           <button
             onClick={() => setShowReward(false)}
             style={{
@@ -1156,7 +1514,7 @@ export default function CampusWorld() {
               border: "none",
               borderRadius: 8,
               padding: "8px 14px",
-              background: "#2b2b2b",
+              background: "linear-gradient(180deg, #2f3f58, #223148)",
               color: "#fff",
               cursor: "pointer",
               fontSize: 13,
@@ -1170,9 +1528,18 @@ export default function CampusWorld() {
       {/* Nearby building */}
       {nearbyBuilding && (
         <div style={{
-          position: "absolute", top: 60, left: "50%", transform: "translateX(-50%)",
-          background: "rgba(0,0,0,0.65)", color: "#fff", padding: "5px 14px",
-          borderRadius: 6, fontSize: 13, pointerEvents: "none",
+          position: "absolute",
+          top: 62,
+          left: "50%",
+          transform: "translateX(-50%)",
+          background: "rgba(8,13,21,0.75)",
+          color: "#f3f8ff",
+          padding: "6px 14px",
+          borderRadius: 10,
+          border: "1px solid rgba(134,171,236,0.3)",
+          fontSize: 13,
+          pointerEvents: "none",
+          backdropFilter: "blur(4px)",
         }}>
           📍 {nearbyBuilding}
         </div>
@@ -1185,10 +1552,11 @@ export default function CampusWorld() {
           bottom: 118,
           left: "50%",
           transform: "translateX(-50%)",
-          background: "rgba(0,0,0,0.65)",
+          background: "rgba(16,14,5,0.72)",
           color: "#ffe27a",
-          padding: "6px 14px",
-          borderRadius: 6,
+          padding: "8px 14px",
+          borderRadius: 10,
+          border: "1px solid rgba(255,210,88,0.38)",
           fontSize: 13,
           pointerEvents: "none",
           zIndex: 12,
