@@ -1,0 +1,26 @@
+.next/
+node_modules/
+dist/
+out/
+.turbo/
+.vercel/
+campusHunt/
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# env
+.env
+.env.*.local
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# misc
+*.tsbuildinfo
